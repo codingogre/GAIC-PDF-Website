@@ -1,0 +1,21 @@
+{
+  "retriever": {
+    "standard": {
+      "query": {
+        "semantic": {
+          "field": "semantic_content",
+          "query": "{{query}}"
+        }
+      }
+    }
+  },
+  "highlight": {
+    "fields": {
+      "semantic_content": {
+        "type": "semantic",
+        "number_of_fragments": 2,
+        "order": "score"
+      }
+    }
+  }
+}

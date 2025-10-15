@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Great American Insurance Group Knowledge Search</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-container">
+                <div class="logo-placeholder">
+                    <img src="gaig_logo_web_full_color.png" alt="Great American Insurance Group Logo" class="logo-image">
+                </div>
+            </div>
+            <div class="header-title">
+                <h1>Knowledge Search</h1>
+            </div>
+            <div class="powered-by">
+                <a href="https://www.elastic.co" target="_blank" rel="noopener" class="elastic-link">
+                    <span>powered by Elasticsearch</span>
+                    <img src="elasticsearch-logo-png-transparent.png" alt="Elasticsearch" class="elastic-logo">
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="search-container">
+            <div class="action-buttons">
+                <button id="sampleQuestionsBtn" class="sample-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                        <path d="M12 17h.01"/>
+                    </svg>
+                    View Sample Questions
+                </button>
+                <button id="systemPromptBtn" class="sample-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10,9 9,9 8,9"/>
+                    </svg>
+                    View System Instructions
+                </button>
+            </div>
+            <div class="search-form">
+                <div class="search-input-group">
+                    <textarea
+                        id="searchInput"
+                        placeholder="Search knowledge base..."
+                        class="search-input"
+                        rows="4"
+                    ></textarea>
+                    <button id="searchBtn" class="search-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="21 21l-4.35-4.35"/>
+                        </svg>
+                        Search
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-layout">
+            <aside class="sidebar">
+                <div class="facets-container">
+                    <h3 class="facets-title">Filter Results</h3>
+
+                    <div class="facet-group">
+                        <h4 class="facet-title">Author</h4>
+                        <div class="facet-items" id="authorFacets">
+                            <div class="facet-loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="facet-group">
+                        <h4 class="facet-title">Content Type</h4>
+                        <div class="facet-items" id="contentTypeFacets">
+                            <div class="facet-loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="facet-group">
+                        <h4 class="facet-title">Creator Tool</h4>
+                        <div class="facet-items" id="creatorToolFacets">
+                            <div class="facet-loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="document-config">
+                    <h4 class="config-title">LLM Configuration</h4>
+                    <div class="config-item">
+                        <label for="docCount">Documents for LLM:</label>
+                        <select id="docCount" class="doc-count-select">
+                            <option value="1">1 document</option>
+                            <option value="3" selected>3 documents</option>
+                            <option value="5">5 documents</option>
+                        </select>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="main-content">
+                <div class="answer-container" id="answerContainer" style="display: none;">
+                    <div class="answer-header">
+                        <h3>Answer</h3>
+                        <div class="answer-source">AI-generated response</div>
+                    </div>
+                    <div class="answer-content" id="answerContent">
+                        <!-- Answer will be populated here -->
+                    </div>
+                    <div class="answer-loading" id="answerLoading" style="display: none;">
+                        <div class="spinner-small"></div>
+                        <span>Generating answer...</span>
+                    </div>
+                </div>
+
+                <div class="results-container" id="resultsContainer">
+                    <div class="welcome-message">
+                        <h2>Welcome to Great American Insurance Group Knowledge Search</h2>
+                        <p>Type in your question above to find relevant information from our knowledge base.</p>
+                    </div>
+                </div>
+
+                <div class="loading" id="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Searching...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Sample Questions Modal -->
+    <div id="sampleQuestionsModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Sample Questions</h3>
+                <button id="closeSampleModal" class="close-button">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">Click any question below to search for it:</p>
+                <div id="sampleQuestionsList" class="questions-list">
+                    <div class="loading-questions">Loading sample questions...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Prompt Modal -->
+    <div id="systemPromptModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content system-prompt-modal">
+            <div class="modal-header">
+                <h3>System Instructions</h3>
+                <button id="closeSystemPromptModal" class="close-button">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">These are the instructions that guide how the AI responds to your questions:</p>
+                <div id="systemPromptContent" class="system-prompt-content">
+                    <div class="loading-prompt">Loading system instructions...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <p>&copy; 2024 Great American Insurance Group. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="#" class="footer-link">Privacy Policy</a>
+                <a href="#" class="footer-link">Terms of Service</a>
+                <a href="#" class="footer-link">Contact Support</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
