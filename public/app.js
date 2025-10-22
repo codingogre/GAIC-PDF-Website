@@ -30,7 +30,13 @@ class KnowledgeSearch {
         this.loadSystemPrompt();
         this.setupSampleQuestionsModal();
         this.setupSystemPromptModal();
+        this.setupDocumentModal();
         this.loadSampleQuestions(); // Load questions at startup
+
+        // Track search start time for telemetry
+        this.searchStartTime = null;
+        this.currentQuery = '';
+        this.currentResults = [];
     }
 
     bindEvents() {
@@ -62,6 +68,10 @@ class KnowledgeSearch {
         this.showLoading();
         this.hideAnswer(); // Hide answer section at start of new search
 
+        // Track search start time for telemetry
+        this.searchStartTime = Date.now();
+        this.currentQuery = query;
+
         try {
             const response = await fetch('/api/search', {
                 method: 'POST',
@@ -80,6 +90,9 @@ class KnowledgeSearch {
             if (!response.ok) {
                 throw new Error(data.error || 'Search failed');
             }
+
+            // Store results for telemetry tracking
+            this.currentResults = data.results;
 
             // Immediately display search results
             this.displayResults(data, query);
@@ -112,7 +125,7 @@ class KnowledgeSearch {
                     Found ${total.toLocaleString()} results in ${took}ms
                 </div>
             </div>
-            ${results.map(result => this.renderResult(result)).join('')}
+            ${results.map((result, index) => this.renderResult(result, index)).join('')}
         `;
 
         this.resultsContainer.innerHTML = resultsHtml;
@@ -122,6 +135,9 @@ class KnowledgeSearch {
 
         // Bind highlight toggle events after HTML is inserted
         this.bindHighlightEvents();
+
+        // Bind click events to result items
+        this.bindResultClickEvents();
     }
 
     getFileTypeIcon(filename) {
@@ -163,13 +179,13 @@ class KnowledgeSearch {
         return icons[extension] || icons.default;
     }
 
-    renderResult(result) {
+    renderResult(result, position) {
         const { id, score, source, highlight } = result;
 
         const title = source.attachment?.title || source.title || source.attachment?.filename || source.filename || 'No title available';
         const author = source.attachment?.author || 'Unknown author';
         const content = source.attachment?.content || source.content || 'No content available';
-        const url = source.url || source.link || '#';
+        const filename = source.filename || source.attachment?.filename || 'Unknown file';
 
         // Check for highlights in semantic_content field
         const highlights = highlight.semantic_content || highlight.content || [];
@@ -185,12 +201,23 @@ class KnowledgeSearch {
             `).join('')
             : '';
 
-        const filename = source.filename || source.attachment?.filename || 'Unknown file';
         const fileIcon = this.getFileTypeIcon(filename);
 
+        // Store result data for click tracking
+        const resultData = JSON.stringify({
+            id,
+            title,
+            filename,
+            author,
+            position,
+            score,
+            content,
+            highlights
+        }).replace(/"/g, '&quot;');
+
         return `
-            <div class="result-item">
-                <div class="result-title" onclick="window.open('${url}', '_blank')">${this.escapeHtml(title)}</div>
+            <div class="result-item" data-result="${resultData}" style="cursor: pointer;">
+                <div class="result-title">${this.escapeHtml(title)}</div>
                 <div class="result-author" style="color: var(--gaig-gray); font-size: 0.9rem; margin-bottom: 0.5rem;">Author: ${this.escapeHtml(author)}</div>
                 <div class="result-filename" style="color: var(--gaig-gray); font-size: 0.9rem; margin-bottom: 0.5rem; display: flex; align-items: center;">${fileIcon}Filename: ${this.escapeHtml(filename)}</div>
                 <div class="result-content">${this.escapeHtml(this.truncateText(content, 300))}</div>
@@ -918,6 +945,146 @@ ${documentsContext}`
             .replace(/<br>\s*<ul>/g, '<ul>');
 
         return formatted;
+    }
+
+    setupDocumentModal() {
+        this.documentModal = document.getElementById('documentModal');
+        this.closeDocumentModal = document.getElementById('closeDocumentModal');
+        this.documentModalTitle = document.getElementById('documentModalTitle');
+        this.documentMetadata = document.getElementById('documentMetadata');
+        this.documentContent = document.getElementById('documentContent');
+
+        // Event listeners
+        this.closeDocumentModal.addEventListener('click', () => this.hideDocumentModal());
+        this.documentModal.addEventListener('click', (e) => {
+            if (e.target === this.documentModal || e.target.classList.contains('modal-overlay')) {
+                this.hideDocumentModal();
+            }
+        });
+
+        // Update ESC key handler to include document modal
+        const existingEscHandler = document.onkeydown;
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (!this.documentModal.classList.contains('hidden')) {
+                    this.hideDocumentModal();
+                }
+            }
+        });
+    }
+
+    bindResultClickEvents() {
+        const resultItems = this.resultsContainer.querySelectorAll('.result-item');
+        resultItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                // Don't trigger if clicking on highlight toggle buttons
+                if (e.target.closest('.highlight-toggle')) {
+                    return;
+                }
+
+                const resultData = JSON.parse(item.dataset.result.replace(/&quot;/g, '"'));
+                this.showDocumentModal(resultData);
+            });
+        });
+    }
+
+    showDocumentModal(resultData) {
+        const { id, title, filename, author, position, score, content, highlights } = resultData;
+
+        // Set modal title
+        this.documentModalTitle.textContent = title;
+
+        // Build metadata section
+        const metadataHtml = `
+            <div class="metadata-row">
+                <span class="metadata-label">Author:</span>
+                <span class="metadata-value">${this.escapeHtml(author)}</span>
+            </div>
+            <div class="metadata-row">
+                <span class="metadata-label">Filename:</span>
+                <span class="metadata-value">${this.escapeHtml(filename)}</span>
+            </div>
+            <div class="metadata-row">
+                <span class="metadata-label">Document ID:</span>
+                <span class="metadata-value">${this.escapeHtml(id)}</span>
+            </div>
+            <div class="metadata-row">
+                <span class="metadata-label">Relevance Score:</span>
+                <span class="metadata-value">${score.toFixed(2)}</span>
+            </div>
+        `;
+        this.documentMetadata.innerHTML = metadataHtml;
+
+        // Build content section
+        let contentHtml = '<div class="document-full-content">';
+
+        // Show highlights if available
+        if (highlights && highlights.length > 0) {
+            contentHtml += '<h4>Relevant Excerpts</h4>';
+            highlights.forEach((highlight, index) => {
+                contentHtml += `<div class="document-excerpt">${highlight}</div>`;
+            });
+            contentHtml += '<h4>Full Content</h4>';
+        }
+
+        // Show full content (truncated for very long documents)
+        const maxContentLength = 5000;
+        const displayContent = content.length > maxContentLength
+            ? content.substring(0, maxContentLength) + '...\n\n[Content truncated for display]'
+            : content;
+
+        contentHtml += `<div class="document-text">${this.escapeHtml(displayContent).replace(/\n/g, '<br>')}</div>`;
+        contentHtml += '</div>';
+
+        this.documentContent.innerHTML = contentHtml;
+
+        // Show modal
+        this.documentModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        // Track the click in telemetry
+        this.trackDocumentClick(id, title, filename, author, position, score);
+    }
+
+    hideDocumentModal() {
+        this.documentModal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    async trackDocumentClick(documentId, documentTitle, documentFilename, documentAuthor, position, score) {
+        try {
+            // Calculate time from search to click
+            const timeToClickMs = this.searchStartTime ? Date.now() - this.searchStartTime : 0;
+
+            const clickData = {
+                query: this.currentQuery,
+                document_id: documentId,
+                document_title: documentTitle,
+                document_filename: documentFilename,
+                document_author: documentAuthor,
+                position: position,
+                score: score,
+                time_to_click_ms: timeToClickMs
+            };
+
+            console.log('📊 Tracking document click:', clickData);
+
+            const response = await fetch('/api/telemetry/click', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(clickData)
+            });
+
+            if (!response.ok) {
+                console.error('Failed to track document click:', response.statusText);
+            } else {
+                console.log('✅ Document click tracked successfully');
+            }
+        } catch (error) {
+            console.error('Error tracking document click:', error);
+        }
     }
 }
 
