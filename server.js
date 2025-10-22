@@ -6,6 +6,7 @@ const path = require('path');
 const { Client } = require('@elastic/elasticsearch');
 const fs = require('fs');
 const https = require('https');
+const TelemetryService = require('./telemetry');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,12 +39,16 @@ const client = new Client({
   auth: {
     apiKey: apiKey
   },
-  requestTimeout: 30000,
+  requestTimeout: 60000,  // Increased to 60 seconds
   pingTimeout: 3000
 });
 
 const mainQuery = JSON.parse(fs.readFileSync('./elasticsearch/main.query', 'utf8'));
 const systemPrompt = fs.readFileSync('./system-prompt.txt', 'utf8');
+
+// Initialize telemetry service
+const USAGE_INDEX = process.env.USAGE_INDEX || 'gaig-usage';
+const telemetry = new TelemetryService(client, USAGE_INDEX);
 
 // Questions cache
 let questionsCache = {
@@ -100,6 +105,27 @@ async function loadSystemPrompt() {
   }
 }
 
+// Function to warm up the ELSER model
+async function warmupElserModel() {
+  try {
+    console.log('Warming up ELSER model...');
+    const queryTemplate = JSON.stringify(mainQuery);
+    const searchQueryString = queryTemplate.replace('{{query}}', 'insurance');
+    const searchQuery = JSON.parse(searchQueryString);
+
+    await client.search({
+      index: INDEX_NAME,
+      body: searchQuery,
+      size: 1
+    });
+
+    console.log('✓ ELSER model warmed up successfully');
+  } catch (error) {
+    console.error('✗ ELSER model warmup failed:', error.message);
+    console.error('The model may need more time to start. First searches might be slow.');
+  }
+}
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -146,6 +172,8 @@ app.get('/api/system-prompt', (req, res) => {
 });
 
 app.post('/api/search', async (req, res) => {
+  const startTime = Date.now();
+
   try {
     const { query, filters = {}, size = 10 } = req.body;
 
@@ -208,6 +236,17 @@ app.post('/api/search', async (req, res) => {
       highlight: hit.highlight || {}
     }));
 
+    const responseTime = Date.now() - startTime;
+
+    // Track the query
+    telemetry.trackQuery(req, {
+      query,
+      filters,
+      result_count: response.hits.total.value,
+      response_time_ms: responseTime,
+      document_count_requested: parseInt(size)
+    });
+
     res.json({
       total: response.hits.total.value,
       results: results,
@@ -217,6 +256,27 @@ app.post('/api/search', async (req, res) => {
 
   } catch (error) {
     console.error('Search error:', error);
+
+    const responseTime = Date.now() - startTime;
+
+    // Track the error
+    telemetry.trackQuery(req, {
+      query: req.body.query,
+      filters: req.body.filters,
+      response_time_ms: responseTime,
+      error_occurred: true,
+      error_message: error.message
+    });
+
+    // Check if it's a model timeout error
+    if (error.message && error.message.includes('model_deployment_timeout_exception')) {
+      return res.status(503).json({
+        error: 'Search temporarily unavailable',
+        message: 'The search model is starting up. Please try again in a few seconds.',
+        retryable: true
+      });
+    }
+
     res.status(500).json({
       error: 'Search failed',
       message: error.message
@@ -449,6 +509,38 @@ app.get('/api/facets', async (req, res) => {
   }
 });
 
+// Telemetry API endpoints
+app.post('/api/telemetry/access', async (req, res) => {
+  try {
+    await telemetry.trackAccess(req, req.body);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error tracking access:', error);
+    res.status(500).json({ error: 'Failed to track access' });
+  }
+});
+
+app.post('/api/telemetry/click', async (req, res) => {
+  try {
+    await telemetry.trackClick(req, req.body);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error tracking click:', error);
+    res.status(500).json({ error: 'Failed to track click' });
+  }
+});
+
+app.get('/api/telemetry/stats', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const stats = await telemetry.getStats({ startDate, endDate });
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting telemetry stats:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
 app.get('/api/health', async (req, res) => {
   try {
     const health = await client.cluster.health();
@@ -489,4 +581,20 @@ app.listen(PORT, async () => {
   } catch (error) {
     console.error('✗ Failed to load system prompt at startup:', error.message);
   }
+
+  // Check telemetry index
+  try {
+    const indexExists = await telemetry.indexExists();
+    if (indexExists) {
+      console.log(`✓ Telemetry index "${USAGE_INDEX}" exists`);
+    } else {
+      console.log(`⚠️  Telemetry index "${USAGE_INDEX}" not found`);
+      console.log(`   Create it with: node elasticsearch/create-index.js ${USAGE_INDEX} ./elasticsearch/usage-index-mapping.json`);
+    }
+  } catch (error) {
+    console.error('✗ Failed to check telemetry index:', error.message);
+  }
+
+  // Warm up ELSER model
+  await warmupElserModel();
 });

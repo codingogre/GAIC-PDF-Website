@@ -1,0 +1,152 @@
+{
+  "mappings": {
+    "properties": {
+      "event_type": {
+        "type": "keyword",
+        "fields": {
+          "text": {
+            "type": "text"
+          }
+        }
+      },
+      "timestamp": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "session_id": {
+        "type": "keyword"
+      },
+      "user_id": {
+        "type": "keyword"
+      },
+      "ip_hash": {
+        "type": "keyword"
+      },
+      "user_agent": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 512
+          }
+        }
+      },
+      "device_type": {
+        "type": "keyword"
+      },
+      "browser": {
+        "type": "keyword"
+      },
+      "os": {
+        "type": "keyword"
+      },
+      "referrer": {
+        "type": "keyword"
+      },
+      "page_url": {
+        "type": "keyword"
+      },
+      "query": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "query_length": {
+        "type": "integer"
+      },
+      "filters_applied": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "keyword"
+          },
+          "content_type": {
+            "type": "keyword"
+          },
+          "creator_tool": {
+            "type": "keyword"
+          }
+        }
+      },
+      "result_count": {
+        "type": "integer"
+      },
+      "response_time_ms": {
+        "type": "integer"
+      },
+      "document_count_requested": {
+        "type": "integer"
+      },
+      "clicked_document_id": {
+        "type": "keyword"
+      },
+      "clicked_document_title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "clicked_document_filename": {
+        "type": "keyword"
+      },
+      "clicked_document_author": {
+        "type": "keyword"
+      },
+      "clicked_position": {
+        "type": "integer"
+      },
+      "clicked_score": {
+        "type": "float"
+      },
+      "time_to_click_ms": {
+        "type": "integer"
+      },
+      "answer_generated": {
+        "type": "boolean"
+      },
+      "answer_length": {
+        "type": "integer"
+      },
+      "llm_response_time_ms": {
+        "type": "integer"
+      },
+      "error_occurred": {
+        "type": "boolean"
+      },
+      "error_message": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "viewport_width": {
+        "type": "integer"
+      },
+      "viewport_height": {
+        "type": "integer"
+      },
+      "page_title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "duration_ms": {
+        "type": "integer"
+      }
+    }
+  }
+}

@@ -2,9 +2,10 @@
   "retriever": {
     "standard": {
       "query": {
-        "semantic": {
+        "sparse_vector": {
           "field": "semantic_content",
-          "query": "{{query}}"
+          "query": "{{query}}",
+          "inference_id": ".elser-2-elasticsearch"
         }
       }
     }
